@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import * as z from "zod";
+import z, { ZodError } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
@@ -58,12 +58,23 @@ export default function FormComponent() {
       email: "",
     },
   });
+  // Helper function to capitalize the first character of each word
+  const capitalizeWords = (text: string): string => {
+    return text
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
 
   // Handle form submission.
   const onSubmit = async (data: FormData): Promise<void> => {
     const { firstName, lastName, email }: FormData = data;
 
     try {
+      // Validate form data using Zod schema.
+      formSchema.parse(data);
+
       // Check if the email already exists in the audience
       const checkResponse = await fetch(
         `/api/mailchimp/submit?email=${encodeURIComponent(email)}`,
@@ -74,27 +85,54 @@ export default function FormComponent() {
       const { exists } = await checkResponse.json();
 
       if (exists) {
-        console.log("Email address already exists in the Mailchimp audience!");
-        form.reset();
+        form.setError("email", {
+          message:
+            "Votre email, dans les limbes égaré. Son existence est deja certifié.",
+        });
         return;
       }
+      // Create a new variable with formatted data
+      const formattedData: FormData = {
+        firstName: capitalizeWords(firstName),
+        lastName: capitalizeWords(lastName),
+        email: email.toLowerCase(),
+      };
+
       // If the email doesn't exist yet, add the new member
       const response = await fetch("/api/mailchimp/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email }),
+        body: JSON.stringify(formattedData), // Use the modified data object instead.
       });
+
       if (response.ok) {
-        console.log("Contact added successfully to the Mailchimp Audience!");
         // Reset the form state after successful submission
         form.reset();
 
         // Redirect to the thank-you page
       } else {
-        console.log("Failed to add contact to the Mailchimp Audience");
+        throw new Error("Failed to add contact to the Mailchimp Audience");
       }
     } catch (error) {
-      console.log("An error occurred:", error);
+      if (error instanceof z.ZodError) {
+        const fieldErrors = error.flatten();
+        Object.entries(fieldErrors).forEach(([field, messages]) => {
+          if (Array.isArray(messages)) {
+            form.setError(field as keyof FormData, { message: messages[0] });
+          }
+        });
+      } else if (
+        error instanceof Error &&
+        error.message.includes("looks fake or invalid")
+      ) {
+        form.setError("email", {
+          message: "Invalid email address. Please enter a valid email.",
+        });
+      } else {
+        // Handle other type of errors
+        console.error("An error occurred:", error);
+        throw new Error("An error occurred. Please try again.");
+      }
     }
   };
 
@@ -116,10 +154,18 @@ export default function FormComponent() {
                 <Input
                   placeholder="Entrez votre nom..."
                   {...field}
-                  className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-slate-600 sm:text-sm sm:leading-6"
+                  className={`block w-full rounded-md border ${
+                    form.formState.errors.lastName
+                      ? "border-red-500"
+                      : "border-gray-300"
+                  } py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-slate-600 sm:text-sm sm:leading-6`}
                 />
               </FormControl>
-              <FormMessage />
+              {form.formState.errors.lastName && (
+                <FormMessage className="text-red-500">
+                  {form.formState.errors.lastName.message}
+                </FormMessage>
+              )}
             </FormItem>
           )}
         />
@@ -137,10 +183,18 @@ export default function FormComponent() {
                 <Input
                   placeholder="Entrez votre prénom..."
                   {...field}
-                  className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-slate-600 sm:text-sm sm:leading-6"
+                  className={`block w-full rounded-md border ${
+                    form.formState.errors.firstName
+                      ? "border-red-500"
+                      : "border-gray-300"
+                  } py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-slate-600 sm:text-sm sm:leading-6`}
                 />
               </FormControl>
-              <FormMessage />
+              {form.formState.errors.firstName && (
+                <FormMessage className="text-red-500">
+                  {form.formState.errors.firstName.message}
+                </FormMessage>
+              )}
             </FormItem>
           )}
         />
@@ -159,10 +213,18 @@ export default function FormComponent() {
                 <Input
                   placeholder="Entrez votre adresse email..."
                   {...field}
-                  className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-slate-600 sm:text-sm sm:leading-6"
+                  className={`block w-full rounded-md border ${
+                    form.formState.errors.email
+                      ? "border-red-500"
+                      : "border-gray-300"
+                  } py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-slate-600 sm:text-sm sm:leading-6`}
                 />
               </FormControl>
-              <FormMessage />
+              {form.formState.errors.email && (
+                <FormMessage className="text-red-500">
+                  {form.formState.errors.email.message}
+                </FormMessage>
+              )}
             </FormItem>
           )}
         />
@@ -180,51 +242,3 @@ export default function FormComponent() {
     </Form>
   );
 }
-
-// <form onSubmit={handleSubmit(onSubmit)}>
-//   <label htmlFor="firstName">First Name:</label>
-//   <input id="firstName" type="text" {...register("firstName")} required />
-
-//   <label htmlFor="lastName">Last Name:</label>
-//   <input id="lastName" type="text" {...register("lastName")} required />
-
-//   <label htmlFor="email">Email:</label>
-//   <input id="email" type="email" {...register("email")} required />
-
-//   <button type="submit">Submit</button>
-// </form>
-
-// // 1. Define a form.
-// const form = useForm<z.infer<typeof formSchema>>({
-//   resolver: zodResolver(formSchema),
-//   defaultValues: {
-//     lastName: "",
-//     firstName: "",
-//     email: "",
-//   },
-// });
-
-// // 2. Define a submit handler.
-// const handleSubmit = async (data: z.infer<typeof formSchema>) => {
-//   const { firstName, lastName, email }: FormData = {
-//     firstName: "",
-//     lastName: "",
-//     email: "",
-//   };
-//   try {
-//     const response = await fetch("/api/mailchimp/submit", {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({ firstName, lastName, email }),
-//     });
-
-//     if (response.ok) {
-//       console.log("Contact added successfully to the Mailchimp Audience!");
-//     } else {
-//       console.log("Failed to add contact to the Mailchimp Audience");
-//       // Handle error cases if needed
-//     }
-//   } catch (error) {
-//     console.log("An error occured:", error);
-//   }
-// };
