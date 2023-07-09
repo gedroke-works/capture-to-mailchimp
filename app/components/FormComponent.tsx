@@ -8,7 +8,6 @@ import { Button } from "./ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -17,21 +16,40 @@ import {
 import { Input } from "./ui/input";
 
 export default function FormComponent() {
-  // Type Props.
+  // Define the form data types.
   type FormData = {
     firstName: string;
     lastName: string;
     email: string;
   };
 
-  // Create a form schema : zod library.
+  // Create a form schema using the zod library.
   const formSchema = z.object({
-    lastName: z.string().min(2).max(20),
-    firstName: z.string().min(2).max(15),
-    email: z.string().email(),
+    lastName: z
+      .string()
+      .min(2, "Veuillez entrer un nom digne de ce nom (2 caractères minimum) !")
+      .max(
+        20,
+        "Nom démesuré, telle une ombre déchaîné. À 20 caractères, limitez-le sans hésiter !"
+      ),
+    firstName: z
+      .string()
+      .min(
+        2,
+        "Un prénom trop court, c'est bien trop banal. Offrez-nous un nom qui égale un régal!"
+      )
+      .max(
+        15,
+        "Prénom envoûtant, aux rimes chatoyantes. À 15 caractères, une harmonie éclatante et étincelante !"
+      ),
+    email: z
+      .string()
+      .email(
+        "Email égaré, erreurs multipliées. Corrigez-le, suivez la voie éclairée!"
+      ),
   });
 
-  // 1. Define a form.
+  // Initialize the form with react-hook-form.
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -41,10 +59,26 @@ export default function FormComponent() {
     },
   });
 
-  // 2. Define a submit handler.
+  // Handle form submission.
   const onSubmit = async (data: FormData): Promise<void> => {
     const { firstName, lastName, email }: FormData = data;
+
     try {
+      // Check if the email already exists in the audience
+      const checkResponse = await fetch(
+        `/api/mailchimp/submit?email=${encodeURIComponent(email)}`,
+        {
+          method: "GET",
+        }
+      );
+      const { exists } = await checkResponse.json();
+
+      if (exists) {
+        console.log("Email address already exists in the Mailchimp audience!");
+        form.reset();
+        return;
+      }
+      // If the email doesn't exist yet, add the new member
       const response = await fetch("/api/mailchimp/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,6 +86,10 @@ export default function FormComponent() {
       });
       if (response.ok) {
         console.log("Contact added successfully to the Mailchimp Audience!");
+        // Reset the form state after successful submission
+        form.reset();
+
+        // Redirect to the thank-you page
       } else {
         console.log("Failed to add contact to the Mailchimp Audience");
       }

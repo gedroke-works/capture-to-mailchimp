@@ -2,7 +2,6 @@ import React from "react";
 import Form from "./components/FormComponent";
 import Image from "next/image";
 import logo from "/public/logo.svg";
-import NotFound from "./not-found";
 
 export default function ContactPage() {
   return (
