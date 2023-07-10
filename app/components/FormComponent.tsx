@@ -1,9 +1,11 @@
 "use client";
 import React from "react";
-import z, { ZodError } from "zod";
+import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { format } from "url";
 import { Button } from "./ui/button";
 import {
   Form,
@@ -16,6 +18,11 @@ import {
 import { Input } from "./ui/input";
 
 export default function FormComponent() {
+  // Initialize state variables
+  const [formSubmitted, setFormSubmitted] = useState(false);
+
+  // Initialize Router
+  const router = useRouter();
   // Define the form data types.
   type FormData = {
     firstName: string;
@@ -72,6 +79,7 @@ export default function FormComponent() {
     const { firstName, lastName, email }: FormData = data;
 
     try {
+      console.log(formSubmitted);
       // Validate form data using Zod schema.
       formSchema.parse(data);
 
@@ -110,6 +118,17 @@ export default function FormComponent() {
         form.reset();
 
         // Redirect to the thank-you page
+        router.replace(
+          format({
+            pathname: "/thank-you",
+            query: { fromForm: "true" },
+          })
+        );
+
+        // Set the form submit variable to true because it is successful
+        setFormSubmitted(true);
+
+        console.log(formSubmitted);
       } else {
         throw new Error("Failed to add contact to the Mailchimp Audience");
       }
@@ -135,7 +154,6 @@ export default function FormComponent() {
       }
     }
   };
-
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

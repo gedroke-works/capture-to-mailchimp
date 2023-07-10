@@ -1,7 +1,7 @@
 import React from "react";
 import Form from "./components/FormComponent";
 import Image from "next/image";
-import logo from "/public/logo.svg";
+import logo from "../public/logo.svg";
 
 export default function ContactPage() {
   return (
